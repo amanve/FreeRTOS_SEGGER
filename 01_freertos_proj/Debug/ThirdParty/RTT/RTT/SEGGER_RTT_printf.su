@@ -1,5 +1,0 @@
-../ThirdParty/RTT/RTT/SEGGER_RTT_printf.c:73:13:_StoreChar	24	static
-../ThirdParty/RTT/RTT/SEGGER_RTT_printf.c:98:13:_PrintUnsigned	48	static
-../ThirdParty/RTT/RTT/SEGGER_RTT_printf.c:188:13:_PrintInt	40	static
-../ThirdParty/RTT/RTT/SEGGER_RTT_printf.c:283:5:SEGGER_RTT_vprintf	152	static
-../ThirdParty/RTT/RTT/SEGGER_RTT_printf.c:474:5:SEGGER_RTT_printf	28	static
