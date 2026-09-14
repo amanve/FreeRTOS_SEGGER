@@ -28,5 +28,11 @@ Purpose : User configuration file for RTT.
 **********************************************************************
 */
 
+// Match FreeRTOS BASEPRI: priority 5 with four implemented priority bits.
+// The recorder UART must also run at priority 5 or lower urgency.
+#define SEGGER_RTT_MAX_INTERRUPT_PRIORITY (0x50)
+#define SEGGER_RTT_MAX_NUM_UP_BUFFERS      (3)
+#define SEGGER_RTT_MAX_NUM_DOWN_BUFFERS    (3)
+
 #endif
 /*************************** End of file ****************************/
