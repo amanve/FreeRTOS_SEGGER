@@ -27,6 +27,8 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "SEGGER_SYSVIEW.h"
+#include "SEGGER_RTT.h"
+#include "HIF_UART.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,6 +39,9 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DWT_CTRL	(*(volatile uint32_t*)0xE0001000)
+
+#define _SERVER_HELLO_SIZE        (4)
+#define _TARGET_HELLO_SIZE        (4)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -61,6 +66,66 @@ static void task2_handler(void* params);
 /* USER CODE BEGIN 0 */
 __attribute__((section(".heap")))
 uint8_t ucHeap[configTOTAL_HEAP_SIZE];
+
+static const U8 _abHelloMsg[_TARGET_HELLO_SIZE] = { 'S', 'V', (SEGGER_SYSVIEW_VERSION / 10000), (SEGGER_SYSVIEW_VERSION / 1000) % 10 };  // "Hello" message expected by SysView: [ 'S', 'V', <PROTOCOL_MAJOR>, <PROTOCOL_MINOR> ]
+
+static struct {
+  U8         NumBytesHelloRcvd;
+  U8         NumBytesHelloSent;
+  int        ChannelID;
+} _SVInfo;
+
+static void _StartSysView(void) {
+  int r;
+  r = SEGGER_SYSVIEW_IsStarted();
+  if (r == 0) {
+    SEGGER_SYSVIEW_Start();
+  }
+}
+/*********************************************************************
+*
+*       _cbOnRx()
+*
+*  Function description
+*    This function is called when the UART receives data.
+*/
+static void _cbOnRx(U8 Data) {
+  if (_SVInfo.NumBytesHelloRcvd < _SERVER_HELLO_SIZE) {  // Not all bytes of <Hello> message received by SysView yet?
+    _SVInfo.NumBytesHelloRcvd++;
+    if (_SVInfo.NumBytesHelloRcvd == _SERVER_HELLO_SIZE) {
+      HIF_UART_EnableTXEInterrupt();  // Reply before trace events exist.
+    }
+    goto Done;
+  }
+  _StartSysView();
+  SEGGER_RTT_WriteDownBuffer(_SVInfo.ChannelID, &Data, 1);  // Write data into corresponding RTT buffer for application to read and handle accordingly
+Done:
+  return;
+}
+
+/*********************************************************************
+*
+*       _cbOnTx()
+*
+*  Function description
+*    This function is called when the UART should transmit data.
+*/
+static int _cbOnTx(U8* pChar) {
+  int r;
+
+  if (_SVInfo.NumBytesHelloSent < _TARGET_HELLO_SIZE) {  // Not all bytes of <Hello> message sent to SysView yet?
+    *pChar = _abHelloMsg[_SVInfo.NumBytesHelloSent];
+    _SVInfo.NumBytesHelloSent++;
+    r = 1;
+    goto Done;
+  }
+  r = SEGGER_RTT_ReadUpBufferNoLock(_SVInfo.ChannelID, pChar, 1);
+  if (r < 0) {  // Failed to read from up buffer?
+    r = 0;
+  }
+Done:
+  return r;
+}
 /* USER CODE END 0 */
 
 /**
@@ -96,10 +161,14 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
-  DWT_CTRL |= (1<<0);
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; // Enable Trace
+  DWT->CYCCNT = 0;                                // Reset the cycle counter
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;            // Enable cycle counter
 
-  SEGGER_SYSVIEW_Conf();
-  SEGGER_SYSVIEW_Start();
+  SEGGER_SYSVIEW_Conf();  // Allocate RTT buffers before enabling UART callbacks.
+  _SVInfo.ChannelID = SEGGER_SYSVIEW_GetChannelID();
+  HIF_UART_Init(400 * 1000, _cbOnTx, _cbOnRx);
+
 
   status = xTaskCreate(task1_handler,"Task-1",200,"hello world task 1",2,&task1_handle);
 

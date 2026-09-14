@@ -57,7 +57,23 @@ Additional information:
 * TODO: Add your defines here.                                       *
 **********************************************************************
 */
-#define SEGGER_SYSVIEW_RTT_BUFFER_SIZE 4096
+// Reserve channel 0 for terminal output; stream trace on channel 1.
+#define SEGGER_SYSVIEW_RTT_CHANNEL             1
+#define SEGGER_SYSVIEW_POST_MORTEM_MODE        0
+#define SEGGER_SYSVIEW_RTT_BUFFER_SIZE         4096
+#define SEGGER_SYSVIEW_USE_INTERNAL_RECORDER    1
+#define SEGGER_SYSVIEW_START_ON_INIT            0
+extern void HIF_UART_EnableTXEInterrupt(void);
+
+/*
+ * CRITICAL for continuous UART recording.
+ * When new SystemView data arrives, restart UART transmission.
+ */
+#define SEGGER_SYSVIEW_ON_EVENT_RECORDED(NumBytes) \
+  do {                                             \
+    (void)(NumBytes);                              \
+    HIF_UART_EnableTXEInterrupt();                 \
+  } while (0)
 
 #endif  // SEGGER_SYSVIEW_CONF_H
 
